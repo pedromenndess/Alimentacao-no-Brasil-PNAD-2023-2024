@@ -1,0 +1,556 @@
+install.packages("tidyverse")
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("readr")
+install.packages("sidrar")
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(sidrar)
+
+# Tabela 9552 - Moradores em domicílios (mil pessoas)
+dados <- get_sidra(api = "/t/9552/n1/all/n2/all/v/10114/p/all/c1/allxt/c12404/allxt")
+
+# Tratando os dados
+dados <- dados %>% 
+  select(
+    regioes = `Brasil e Grande Região`,
+    moradores_mil_pessoas = Valor,
+    variável = Variável,
+    situacao = `Situação do domicílio`,
+    ano = Ano,
+    seguranca_alimentar = `Situação de segurança alimentar existente no domicílio`)
+
+# Agrupando e calculando totais por região, ano e segurança alimentar
+dados_agrupados <- dados %>%
+  group_by(regioes, ano, seguranca_alimentar) %>%
+  summarise(total_moradores = sum(moradores_mil_pessoas, na.rm = TRUE), .groups = "drop")
+
+# Calculando o total por região e ano (para calcular a porcentagem)
+# 1. Filtramos para excluir a categoria totalizadora "Com insegurança alimentar"
+# 2. As categorias que SÃO somadas são: "Com segurança alimentar", "Leve", "Moderada", "Grave".
+totais_por_regiao <- dados_agrupados %>%
+  filter(seguranca_alimentar != "Com insegurança alimentar") %>% 
+  group_by(regioes, ano) %>%
+  summarise(total_regiao = sum(total_moradores), .groups = "drop")
+
+# Juntando e calculando as porcentagens
+dados_final <- dados_agrupados %>%
+  left_join(totais_por_regiao, by = c("regioes", "ano")) %>%
+  mutate(porcentagem = (total_moradores / total_regiao) * 100)
+
+
+# ------------ Mapas ----------
+
+library(ggplot2)
+library(showtext)
+library(dplyr)
+library(geobr)
+library(sf)
+library(patchwork)
+
+font_add_google("Ubuntu", "Ubuntu")
+showtext_auto()
+
+# Baixando os dados geográficos das regiões do Brasil
+regioes_geo <- read_region(year = 2020)
+
+# ========== MAPA: Com insegurança alimentar grave ==========
+
+# Mapa 2024
+dados_mapa_2024_grave <- dados_final %>%
+  filter(regioes != "Brasil", 
+         ano == 2024,
+         seguranca_alimentar == "Com insegurança alimentar grave") %>%
+  mutate(name_region = case_when(
+    regioes == "Região Norte" ~ "Norte",
+    regioes == "Região Nordeste" ~ "Nordeste",
+    regioes == "Região Sudeste" ~ "Sudeste",
+    regioes == "Região Sul" ~ "Sul",
+    regioes == "Região Centro-Oeste" ~ "Centro Oeste",
+    grepl("Centro", regioes, ignore.case = TRUE) ~ "Centro Oeste",
+    TRUE ~ regioes
+  ))
+
+mapa_dados_2024_grave <- regioes_geo %>%
+  left_join(dados_mapa_2024_grave, by = "name_region")
+
+centroides_2024_grave <- st_centroid(mapa_dados_2024_grave)
+centroides_coords_2024_grave <- st_coordinates(centroides_2024_grave)
+mapa_dados_2024_grave$lon <- centroides_coords_2024_grave[,1]
+mapa_dados_2024_grave$lat <- centroides_coords_2024_grave[,2]
+
+mapa_2024_grave <- ggplot(mapa_dados_2024_grave) +
+  geom_sf(aes(fill = porcentagem), color = "white", size = 0.8) +
+  geom_text(aes(x = lon, y = lat, 
+                label = paste0(name_region, "\n", round(porcentagem, 1), "%")),
+            family = "Ubuntu", size = 3.5, fontface = "bold") +
+  scale_fill_gradient(low = "#FFCCCC", high = "#CC0000",
+                      name = "Porcentagem (%)",
+                      breaks = seq(0, 10, by = 1)) +
+  labs(subtitle = "2024") +
+  theme_void(base_family = "Ubuntu") +
+  theme(
+    plot.subtitle = element_text(face = "bold", family = "Ubuntu", 
+                                 size = 13, hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.background = element_rect(fill = "#D4C4B0", color = NA),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
+
+# Mapa 2023
+dados_mapa_2023_grave <- dados_final %>%
+  filter(regioes != "Brasil", 
+         ano == 2023,
+         seguranca_alimentar == "Com insegurança alimentar grave") %>%
+  mutate(name_region = case_when(
+    regioes == "Região Norte" ~ "Norte",
+    regioes == "Região Nordeste" ~ "Nordeste",
+    regioes == "Região Sudeste" ~ "Sudeste",
+    regioes == "Região Sul" ~ "Sul",
+    regioes == "Região Centro-Oeste" ~ "Centro Oeste",
+    grepl("Centro", regioes, ignore.case = TRUE) ~ "Centro Oeste",
+    TRUE ~ regioes
+  ))
+
+mapa_dados_2023_grave <- regioes_geo %>%
+  left_join(dados_mapa_2023_grave, by = "name_region")
+
+centroides_2023_grave <- st_centroid(mapa_dados_2023_grave)
+centroides_coords_2023_grave <- st_coordinates(centroides_2023_grave)
+mapa_dados_2023_grave$lon <- centroides_coords_2023_grave[,1]
+mapa_dados_2023_grave$lat <- centroides_coords_2023_grave[,2]
+
+mapa_2023_grave <- ggplot(mapa_dados_2023_grave) +
+  geom_sf(aes(fill = porcentagem), color = "white", size = 0.8) +
+  geom_text(aes(x = lon, y = lat, 
+                label = paste0(name_region, "\n", round(porcentagem, 1), "%")),
+            family = "Ubuntu", size = 3.5, fontface = "bold") +
+  scale_fill_gradient(low = "#FFCCCC", high = "#CC0000",
+                      name = "Porcentagem (%)",
+                      breaks = seq(0, 10, by = 1)) +
+  labs(subtitle = "2023") +
+  theme_void(base_family = "Ubuntu") +
+  theme(
+    plot.subtitle = element_text(face = "bold", family = "Ubuntu", 
+                                 size = 13, hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.background = element_rect(fill = "#D4C4B0", color = NA),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
+
+# Combinando os mapas
+mapa_grave_final <- mapa_2024_grave + mapa_2023_grave +
+  plot_annotation(
+    title = "Proporção de pessoas em insegurança alimentar grave por Região do Brasil",
+    subtitle = "Comparação entre 2023 e 2024",
+    caption = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro",
+    theme = theme(
+      plot.title = element_text(face = "bold", family = "Ubuntu", 
+                                size = 16, hjust = 0.5),
+      plot.subtitle = element_text(face = "italic", family = "Ubuntu", 
+                                   size = 13, hjust = 0.5),
+      plot.caption = element_text(face = "italic", family = "Ubuntu", size = 12),
+      plot.background = element_rect(fill = "#D4C4B0", color = NA)
+    )
+  )
+
+print(mapa_grave_final)
+
+# ========== MAPA: Com insegurança alimentar moderada ==========
+
+# Mapa 2024
+dados_mapa_2024_moderada <- dados_final %>%
+  filter(regioes != "Brasil", 
+         ano == 2024,
+         seguranca_alimentar == "Com insegurança alimentar moderada") %>%
+  mutate(name_region = case_when(
+    regioes == "Região Norte" ~ "Norte",
+    regioes == "Região Nordeste" ~ "Nordeste",
+    regioes == "Região Sudeste" ~ "Sudeste",
+    regioes == "Região Sul" ~ "Sul",
+    regioes == "Região Centro-Oeste" ~ "Centro Oeste",
+    grepl("Centro", regioes, ignore.case = TRUE) ~ "Centro Oeste",
+    TRUE ~ regioes
+  ))
+
+mapa_dados_2024_moderada <- regioes_geo %>%
+  left_join(dados_mapa_2024_moderada, by = "name_region")
+
+centroides_2024_moderada <- st_centroid(mapa_dados_2024_moderada)
+centroides_coords_2024_moderada <- st_coordinates(centroides_2024_moderada)
+mapa_dados_2024_moderada$lon <- centroides_coords_2024_moderada[,1]
+mapa_dados_2024_moderada$lat <- centroides_coords_2024_moderada[,2]
+
+mapa_2024_moderada <- ggplot(mapa_dados_2024_moderada) +
+  geom_sf(aes(fill = porcentagem), color = "white", size = 0.8) +
+  geom_text(aes(x = lon, y = lat, 
+                label = paste0(name_region, "\n", round(porcentagem, 1), "%")),
+            family = "Ubuntu", size = 3.5, fontface = "bold") +
+  scale_fill_gradient(low = "#FFE5CC", high = "#FF6600",
+                      name = "Porcentagem (%)",
+                      breaks = seq(0, 20, by = 1)) +
+  labs(subtitle = "2024") +
+  theme_void(base_family = "Ubuntu") +
+  theme(
+    plot.subtitle = element_text(face = "bold", family = "Ubuntu", 
+                                 size = 13, hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.background = element_rect(fill = "#D4C4B0", color = NA),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
+
+# Mapa 2023
+dados_mapa_2023_moderada <- dados_final %>%
+  filter(regioes != "Brasil", 
+         ano == 2023,
+         seguranca_alimentar == "Com insegurança alimentar moderada") %>%
+  mutate(name_region = case_when(
+    regioes == "Região Norte" ~ "Norte",
+    regioes == "Região Nordeste" ~ "Nordeste",
+    regioes == "Região Sudeste" ~ "Sudeste",
+    regioes == "Região Sul" ~ "Sul",
+    regioes == "Região Centro-Oeste" ~ "Centro Oeste",
+    grepl("Centro", regioes, ignore.case = TRUE) ~ "Centro Oeste",
+    TRUE ~ regioes
+  ))
+
+mapa_dados_2023_moderada <- regioes_geo %>%
+  left_join(dados_mapa_2023_moderada, by = "name_region")
+
+centroides_2023_moderada <- st_centroid(mapa_dados_2023_moderada)
+centroides_coords_2023_moderada <- st_coordinates(centroides_2023_moderada)
+mapa_dados_2023_moderada$lon <- centroides_coords_2023_moderada[,1]
+mapa_dados_2023_moderada$lat <- centroides_coords_2023_moderada[,2]
+
+mapa_2023_moderada <- ggplot(mapa_dados_2023_moderada) +
+  geom_sf(aes(fill = porcentagem), color = "white", size = 0.8) +
+  geom_text(aes(x = lon, y = lat, 
+                label = paste0(name_region, "\n", round(porcentagem, 1), "%")),
+            family = "Ubuntu", size = 3.5, fontface = "bold") +
+  scale_fill_gradient(low = "#FFE5CC", high = "#FF6600",
+                      name = "Porcentagem (%)",
+                      breaks = seq(0, 20, by = 1)) +
+  labs(subtitle = "2023") +
+  theme_void(base_family = "Ubuntu") +
+  theme(
+    plot.subtitle = element_text(face = "bold", family = "Ubuntu", 
+                                 size = 13, hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.background = element_rect(fill = "#D4C4B0", color = NA),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
+
+# Combinando os mapas
+mapa_moderada_final <- mapa_2024_moderada + mapa_2023_moderada +
+  plot_annotation(
+    title = "Proporção de pessoas em insegurança alimentar moderada por Região do Brasil",
+    subtitle = "Comparação entre 2023 e 2024",
+    caption = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro",
+    theme = theme(
+      plot.title = element_text(face = "bold", family = "Ubuntu", 
+                                size = 16, hjust = 0.5),
+      plot.subtitle = element_text(face = "italic", family = "Ubuntu", 
+                                   size = 13, hjust = 0.5),
+      plot.caption = element_text(face = "italic", family = "Ubuntu", size = 12),
+      plot.background = element_rect(fill = "#D4C4B0", color = NA)
+    )
+  )
+
+print(mapa_moderada_final)
+
+
+# ========== MAPA: Com insegurança alimentar leve ==========
+
+# Mapa 2024
+dados_mapa_2024_leve <- dados_final %>%
+  filter(regioes != "Brasil", 
+         ano == 2024,
+         seguranca_alimentar == "Com insegurança alimentar leve") %>%
+  mutate(name_region = case_when(
+    regioes == "Região Norte" ~ "Norte",
+    regioes == "Região Nordeste" ~ "Nordeste",
+    regioes == "Região Sudeste" ~ "Sudeste",
+    regioes == "Região Sul" ~ "Sul",
+    regioes == "Região Centro-Oeste" ~ "Centro Oeste",
+    grepl("Centro", regioes, ignore.case = TRUE) ~ "Centro Oeste",
+    TRUE ~ regioes
+  ))
+
+mapa_dados_2024_leve <- regioes_geo %>%
+  left_join(dados_mapa_2024_leve, by = "name_region")
+
+centroides_2024_leve <- st_centroid(mapa_dados_2024_leve)
+centroides_coords_2024_leve <- st_coordinates(centroides_2024_leve)
+mapa_dados_2024_leve$lon <- centroides_coords_2024_leve[,1]
+mapa_dados_2024_leve$lat <- centroides_coords_2024_leve[,2]
+
+mapa_2024_leve <- ggplot(mapa_dados_2024_leve) +
+  geom_sf(aes(fill = porcentagem), color = "white", size = 0.8) +
+  geom_text(aes(x = lon, y = lat, 
+                label = paste0(name_region, "\n", round(porcentagem, 1), "%")),
+            family = "Ubuntu", size = 3.5, fontface = "bold") +
+  scale_fill_gradient(low = "#FFF5E6", high = "#FFB366",
+                      name = "Porcentagem (%)",
+                      breaks = seq(0, 30, by = 1)) +
+  labs(subtitle = "2024") +
+  theme_void(base_family = "Ubuntu") +
+  theme(
+    plot.subtitle = element_text(face = "bold", family = "Ubuntu", 
+                                 size = 13, hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.background = element_rect(fill = "#D4C4B0", color = NA),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
+
+# Mapa 2023
+dados_mapa_2023_leve <- dados_final %>%
+  filter(regioes != "Brasil", 
+         ano == 2023,
+         seguranca_alimentar == "Com insegurança alimentar leve") %>%
+  mutate(name_region = case_when(
+    regioes == "Região Norte" ~ "Norte",
+    regioes == "Região Nordeste" ~ "Nordeste",
+    regioes == "Região Sudeste" ~ "Sudeste",
+    regioes == "Região Sul" ~ "Sul",
+    regioes == "Região Centro-Oeste" ~ "Centro Oeste",
+    grepl("Centro", regioes, ignore.case = TRUE) ~ "Centro Oeste",
+    TRUE ~ regioes
+  ))
+
+mapa_dados_2023_leve <- regioes_geo %>%
+  left_join(dados_mapa_2023_leve, by = "name_region")
+
+centroides_2023_leve <- st_centroid(mapa_dados_2023_leve)
+centroides_coords_2023_leve <- st_coordinates(centroides_2023_leve)
+mapa_dados_2023_leve$lon <- centroides_coords_2023_leve[,1]
+mapa_dados_2023_leve$lat <- centroides_coords_2023_leve[,2]
+
+mapa_2023_leve <- ggplot(mapa_dados_2023_leve) +
+  geom_sf(aes(fill = porcentagem), color = "white", size = 0.8) +
+  geom_text(aes(x = lon, y = lat, 
+                label = paste0(name_region, "\n", round(porcentagem, 1), "%")),
+            family = "Ubuntu", size = 3.5, fontface = "bold") +
+  scale_fill_gradient(low = "#FFF5E6", high = "#FFB366",
+                      name = "Porcentagem (%)",
+                      breaks = seq(0, 30, by = 1)) +
+  labs(subtitle = "2023") +
+  theme_void(base_family = "Ubuntu") +
+  theme(
+    plot.subtitle = element_text(face = "bold", family = "Ubuntu", 
+                                 size = 13, hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.background = element_rect(fill = "#D4C4B0", color = NA),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
+
+# Combinando os mapas
+mapa_leve_final <- mapa_2024_leve + mapa_2023_leve +
+  plot_annotation(
+    title = "Proporção de pessoas em insegurança alimentar leve por Região do Brasil",
+    subtitle = "Comparação entre 2023 e 2024",
+    caption = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro",
+    theme = theme(
+      plot.title = element_text(face = "bold", family = "Ubuntu", 
+                                size = 16, hjust = 0.5),
+      plot.subtitle = element_text(face = "italic", family = "Ubuntu", 
+                                   size = 13, hjust = 0.5),
+      plot.caption = element_text(face = "italic", family = "Ubuntu", size = 12),
+      plot.background = element_rect(fill = "#D4C4B0", color = NA)
+    )
+  )
+
+print(mapa_leve_final)
+
+
+# ========== MAPA: Com segurança alimentar ==========
+
+# Mapa 2024
+dados_mapa_2024_seguranca <- dados_final %>%
+  filter(regioes != "Brasil", 
+         ano == 2024,
+         seguranca_alimentar == "Com segurança alimentar") %>%
+  mutate(name_region = case_when(
+    regioes == "Região Norte" ~ "Norte",
+    regioes == "Região Nordeste" ~ "Nordeste",
+    regioes == "Região Sudeste" ~ "Sudeste",
+    regioes == "Região Sul" ~ "Sul",
+    regioes == "Região Centro-Oeste" ~ "Centro Oeste",
+    grepl("Centro", regioes, ignore.case = TRUE) ~ "Centro Oeste",
+    TRUE ~ regioes
+  ))
+
+mapa_dados_2024_seguranca <- regioes_geo %>%
+  left_join(dados_mapa_2024_seguranca, by = "name_region")
+
+centroides_2024_seguranca <- st_centroid(mapa_dados_2024_seguranca)
+centroides_coords_2024_seguranca <- st_coordinates(centroides_2024_seguranca)
+mapa_dados_2024_seguranca$lon <- centroides_coords_2024_seguranca[,1]
+mapa_dados_2024_seguranca$lat <- centroides_coords_2024_seguranca[,2]
+
+mapa_2024_seguranca <- ggplot(mapa_dados_2024_seguranca) +
+  geom_sf(aes(fill = porcentagem), color = "white", size = 0.8) +
+  geom_text(aes(x = lon, y = lat, 
+                label = paste0(name_region, "\n", round(porcentagem, 1), "%")),
+            family = "Ubuntu", size = 3.5, fontface = "bold") +
+  scale_fill_gradient(low = "#E6F7E6", high = "#2D882D",
+                      name = "Porcentagem (%)",
+                      breaks = seq(0, 100, by = 10)) + 
+  labs(subtitle = "2024") +
+  theme_void(base_family = "Ubuntu") +
+  theme(
+    plot.subtitle = element_text(face = "bold", family = "Ubuntu", 
+                                 size = 13, hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.background = element_rect(fill = "#D4C4B0", color = NA),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
+
+# Mapa 2023
+dados_mapa_2023_seguranca <- dados_final %>%
+  filter(regioes != "Brasil", 
+         ano == 2023,
+         seguranca_alimentar == "Com segurança alimentar") %>%
+  mutate(name_region = case_when(
+    regioes == "Região Norte" ~ "Norte",
+    regioes == "Região Nordeste" ~ "Nordeste",
+    regioes == "Região Sudeste" ~ "Sudeste",
+    regioes == "Região Sul" ~ "Sul",
+    regioes == "Região Centro-Oeste" ~ "Centro Oeste",
+    grepl("Centro", regioes, ignore.case = TRUE) ~ "Centro Oeste",
+    TRUE ~ regioes
+  ))
+
+mapa_dados_2023_seguranca <- regioes_geo %>%
+  left_join(dados_mapa_2023_seguranca, by = "name_region")
+
+centroides_2023_seguranca <- st_centroid(mapa_dados_2023_seguranca)
+centroides_coords_2023_seguranca <- st_coordinates(centroides_2023_seguranca)
+mapa_dados_2023_seguranca$lon <- centroides_coords_2023_seguranca[,1]
+mapa_dados_2023_seguranca$lat <- centroides_coords_2023_seguranca[,2]
+
+mapa_2023_seguranca <- ggplot(mapa_dados_2023_seguranca) +
+  geom_sf(aes(fill = porcentagem), color = "white", size = 0.8) +
+  geom_text(aes(x = lon, y = lat, 
+                label = paste0(name_region, "\n", round(porcentagem, 1), "%")),
+            family = "Ubuntu", size = 3.5, fontface = "bold") +
+  scale_fill_gradient(low = "#E6F7E6", high = "#2D882D",
+                      name = "Porcentagem (%)",
+                      breaks = seq(0, 100, by = 10)) + 
+  labs(subtitle = "2023") +
+  theme_void(base_family = "Ubuntu") +
+  theme(
+    plot.subtitle = element_text(face = "bold", family = "Ubuntu", 
+                                 size = 13, hjust = 0.5),
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.background = element_rect(fill = "#D4C4B0", color = NA),
+    plot.margin = margin(t = 5, r = 5, b = 5, l = 5)
+  )
+
+# Combinando os mapas
+mapa_seguranca_final <- mapa_2024_seguranca + mapa_2023_seguranca +
+  plot_annotation(
+    title = "Proporção de pessoas em segurança alimentar por Região do Brasil",
+    subtitle = "Comparação entre 2023 e 2024",
+    caption = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro",
+    theme = theme(
+      plot.title = element_text(face = "bold", family = "Ubuntu", 
+                                size = 16, hjust = 0.5),
+      plot.subtitle = element_text(face = "italic", family = "Ubuntu", 
+                                   size = 13, hjust = 0.5),
+      plot.caption = element_text(face = "italic", family = "Ubuntu", size = 12),
+      plot.background = element_rect(fill = "#D4C4B0", color = NA)
+    )
+  )
+
+print(mapa_seguranca_final)
+
+
+
+library(dplyr)
+library(knitr)
+library(kableExtra)
+library(scales)
+
+# 1. PREPARAÇÃO DA BASE (Regiões Individuais)
+# Criamos a base apenas com as regiões e ajustamos nomes/unidades
+tabela_abnt_dados_regioes <- inseguranca_por_regiao_2024 %>%
+  # Remove a linha "Brasil" para focar nas regiões e evitar duplicação no cálculo do total
+  filter(regioes != "Brasil") %>% 
+  
+  # Renomeia as colunas
+  rename("Região" = regioes,
+         "Moradores em domicílios (mil unidades)" = total_moradores,
+         "Moradores (absoluto)" = total_pessoas)
+
+# 2. CALCULAR A LINHA DE TOTAL (Soma das Regiões)
+total_row_data <- tabela_abnt_dados_regioes %>%
+  # Sumariza todas as colunas numéricas
+  summarise(
+    "Moradores em domicílios (mil unidades)" = sum(`Moradores em domicílios (mil unidades)`),
+    "Moradores (absoluto)" = sum(`Moradores (absoluto)`)
+  ) %>%
+  # Cria a coluna de texto para a Região
+  mutate(Região = "Total (Brasil)") %>%
+  # Reorganiza as colunas
+  select(Região, everything())
+
+# 3. FORMATAR E COMBINAR OS DADOS (Regiões + Total)
+tabela_abnt_final_dados <- tabela_abnt_dados_regioes %>%
+  # Adiciona a linha de total
+  bind_rows(total_row_data) %>%
+  
+  # Aplica a formatação de números
+  mutate(`Moradores em domicílios (mil unidades)` = number(`Moradores em domicílios (mil unidades)`, big.mark = ".", decimal.mark = ",", accuracy = 0.001),
+         `Moradores (absoluto)` = number(`Moradores (absoluto)`, big.mark = ".", decimal.mark = ",", accuracy = 1))
+
+# 4. GERAÇÃO DA TABELA (Formato ABNT com Ajuste de Cor)
+tabela_final_abnt <- tabela_abnt_final_dados %>%
+  kable(
+    # Título da Tabela (colocado acima)
+    caption = "Pessoas Vivendo em Insegurança Alimentar por Região do Brasil (2024)",
+    format = "html", 
+    align = "l" 
+  ) %>%
+  kable_styling(
+    bootstrap_options = "striped", 
+    full_width = FALSE,
+    latex_options = c("striped", "repeat_header")
+  ) %>%
+  # DESTAQUE: Adiciona o estilo para o título (caption)
+  # Usamos "#333333" (um preto suave) para o texto do caption, e bold
+  # O estilo 'caption' é aplicado separadamente no HTML
+  row_spec(0, extra_css = "border-bottom: 2px solid black;") %>% # Adiciona linha abaixo do cabeçalho
+  row_spec(nrow(tabela_abnt_final_dados), bold = TRUE, hline_after = TRUE) %>%
+  
+  # Estilo ABNT para o CAPTION (que é o que está com cor cinza claro)
+  # Esta é a melhor forma de aplicar um estilo específico ao título em HTML
+  add_footnote(
+    label = paste0('<style>caption { color: #333333; font-weight: bold; }</style>'),
+    notation = "none",
+    escape = FALSE
+  )
+
+tabela_final_abnt
+
+
+
+  
