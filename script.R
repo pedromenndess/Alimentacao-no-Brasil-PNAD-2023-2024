@@ -484,17 +484,49 @@ mapa_seguranca_final <- mapa_2024_seguranca + mapa_2023_seguranca +
 print(mapa_seguranca_final)
 
 
+# ----- Criação das tabelas
+library(dplyr)
+library(scales)
+library(tidyverse)
 
+# 1. FILTRAR E SELECIONAR OS DADOS
+inseguranca_por_regiao_2024 <- dados_final %>%
+  filter(ano == 2024,
+         seguranca_alimentar == "Com insegurança alimentar") %>%
+  # Selecionamos as colunas relevantes
+  select(regioes, total_moradores) %>%
+  # Adicionamos a coluna em números absolutos
+  mutate(total_pessoas = total_moradores * 1000)
+
+# 2. FORMATAR E MOSTRAR O RESULTADO (Usando 'for loop' para evitar erro de pwalk)
+cat("Pessoas com 'Com Insegurança Alimentar' por Região (2024)\n")
+cat("------------------------------------------------------\n")
+
+# Itera sobre o número de linhas da tabela
+for (i in 1:nrow(inseguranca_por_regiao_2024)) {
+  
+  # Acessa os valores da linha 'i' pelo nome da coluna ($)
+  regiao_val <- inseguranca_por_regiao_2024$regioes[i]
+  milhares_val <- inseguranca_por_regiao_2024$total_moradores[i]
+  pessoas_val <- inseguranca_por_regiao_2024$total_pessoas[i]
+  
+  cat("Região:", regiao_val, "\n")
+  cat("  Em Milhares:", format(milhares_val, big.mark = ".", decimal.mark = ","), "\n")
+  cat("  Pessoas (Absoluto):", format(pessoas_val, big.mark = ".", decimal.mark = ","), "\n")
+  cat("------------------------------------------------------\n")
+}
+
+# ------ Tabela 1 Corrigida (Pessoas vivendo em algum grau de insegurança alimentar por região - 2024)
 library(dplyr)
 library(knitr)
 library(kableExtra)
 library(scales)
 
 # 1. PREPARAÇÃO DA BASE (Regiões Individuais)
-# Criamos a base apenas com as regiões e ajustamos nomes/unidades
+# A base 'inseguranca_por_regiao_2024' deve estar definida no seu ambiente
 tabela_abnt_dados_regioes <- inseguranca_por_regiao_2024 %>%
-  # Remove a linha "Brasil" para focar nas regiões e evitar duplicação no cálculo do total
-  filter(regioes != "Brasil") %>% 
+  # Remove a linha "Brasil"
+  filter(regioes != "Brasil") %>%
   
   # Renomeia as colunas
   rename("Região" = regioes,
@@ -522,11 +554,13 @@ tabela_abnt_final_dados <- tabela_abnt_dados_regioes %>%
   mutate(`Moradores em domicílios (mil unidades)` = number(`Moradores em domicílios (mil unidades)`, big.mark = ".", decimal.mark = ",", accuracy = 0.001),
          `Moradores (absoluto)` = number(`Moradores (absoluto)`, big.mark = ".", decimal.mark = ",", accuracy = 1))
 
-# 4. GERAÇÃO DA TABELA (Formato ABNT com Ajuste de Cor)
+# 4. GERAÇÃO DA TABELA (Formato ABNT com Ajuste de Cor e Fonte)
+n_rows_tabela_1 <- nrow(tabela_abnt_final_dados)
+
 tabela_final_abnt <- tabela_abnt_final_dados %>%
   kable(
-    # Título da Tabela (colocado acima)
-    caption = "Pessoas Vivendo em Insegurança Alimentar por Região do Brasil (2024)",
+    # Aplica a cor preta no TÍTULO (caption)
+    caption = '<span style="color: black;">Tabela 1 – Pessoas vivendo em algum grau de insegurança alimentar por região do Brasil (2024)</span>',
     format = "html", 
     align = "l" 
   ) %>%
@@ -535,22 +569,393 @@ tabela_final_abnt <- tabela_abnt_final_dados %>%
     full_width = FALSE,
     latex_options = c("striped", "repeat_header")
   ) %>%
-  # DESTAQUE: Adiciona o estilo para o título (caption)
-  # Usamos "#333333" (um preto suave) para o texto do caption, e bold
-  # O estilo 'caption' é aplicado separadamente no HTML
-  row_spec(0, extra_css = "border-bottom: 2px solid black;") %>% # Adiciona linha abaixo do cabeçalho
-  row_spec(nrow(tabela_abnt_final_dados), bold = TRUE, hline_after = TRUE) %>%
-  
-  # Estilo ABNT para o CAPTION (que é o que está com cor cinza claro)
-  # Esta é a melhor forma de aplicar um estilo específico ao título em HTML
+  # Adiciona linha abaixo do cabeçalho
+  row_spec(0, extra_css = "border-bottom: 2px solid black;") %>% 
+  # Usa variável pré-calculada e aplica hline
+  row_spec(n_rows_tabela_1, bold = TRUE, hline_after = TRUE) %>%
+  # ADICIONA A FONTE/NOTA (placement removido)
   add_footnote(
-    label = paste0('<style>caption { color: #333333; font-weight: bold; }</style>'),
-    notation = "none",
-    escape = FALSE
+    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    notation = "none", # Remove a marcação (a, b, c...)
+    escape = FALSE # Permite o uso de caracteres especiais ou HTML (se necessário)
   )
 
 tabela_final_abnt
 
+# --------- Tabela 2 Corrigida (Variação de Insegurança Alimentar por Região)
+# --------- Tabela 2 Corrigida (Variação de Insegurança Alimentar por Região)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(kableExtra)
+library(scales)
 
-
+# 1. PREPARAÇÃO E CÁLCULO DA VARIAÇÃO PERCENTUAL (2023 -> 2024)
+dados_variacao <- dados_final %>%
+  filter(seguranca_alimentar == "Com insegurança alimentar") %>%
+  select(regioes, ano, porcentagem) %>%
+  pivot_wider(
+    names_from = ano,
+    values_from = porcentagem,
+    names_prefix = "perc_"
+  ) %>%
+  mutate(
+    variacao_percentual = ((perc_2024 - perc_2023) / perc_2023) * 100
+  ) %>%
   
+  # Ordem dos selects (perc_2024 antes de perc_2023)
+  select(regioes, perc_2024, perc_2023, variacao_percentual) %>%
+  
+  mutate(regioes = factor(regioes, levels = c("Brasil", "Norte", "Nordeste", "Sudeste", "Sul", "Centro-Oeste"))) %>%
+  arrange(regioes)
+
+# 2. CALCULA O NÚMERO DE LINHAS ANTES DO PIPE
+n_rows_data <- nrow(dados_variacao)
+
+# 3. FORMATAÇÃO CIENTÍFICA (ABNT) E GERAÇÃO DA TABELA
+tabela_abnt_reducao <- dados_variacao %>%
+  
+  # Formata os números para a exibição na tabela
+  mutate(
+    `Proporção 2024 (%)` = number(perc_2024, accuracy = 0.1, decimal.mark = ","),
+    `Proporção 2023 (%)` = number(perc_2023, accuracy = 0.1, decimal.mark = ","),
+    `Variação Percentual (%)` = number(variacao_percentual, accuracy = 0.1, decimal.mark = ",")
+  ) %>%
+  
+  # Seleciona as colunas a serem exibidas na ordem final
+  select(regioes, `Proporção 2024 (%)`, `Proporção 2023 (%)`, `Variação Percentual (%)`) %>%
+  
+  # Renomeia a coluna principal
+  rename("Região" = regioes) %>%
+  
+  # Gera a tabela usando kable
+  kable(
+    # CSS para garantir cor preta
+    caption = '<span style="color: black;">Tabela 2 – Variação percentual de pessoas em insegurança alimentar por região do Brasil (2023–2024)</span>',
+    format = "html", # Linha limpa
+    align = "l"
+  ) %>%
+  kable_styling(
+    bootstrap_options = "striped",
+    full_width = FALSE
+  ) %>%
+  # Adiciona bordas conforme ABNT
+  row_spec(0, extra_css = "border-bottom: 2px solid black;") %>% # Linha abaixo do cabeçalho
+  
+  # Usa a variável numérica pré-calculada para o índice da última linha
+  row_spec(n_rows_data, hline_after = TRUE) %>% # Linha abaixo da última linha de dados
+  
+  # Destaca a linha do Brasil (que é o índice 1)
+  row_spec(1, bold = TRUE) %>%
+  # ADICIONA A FONTE/NOTA
+  add_footnote(
+    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    notation = "none" 
+  )
+
+tabela_abnt_reducao
+
+# --------- Tabela 2 Corrigida (Variação de Insegurança Alimentar por Região)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(kableExtra)
+library(scales)
+
+# 1. PREPARAÇÃO E CÁLCULO DA VARIAÇÃO PERCENTUAL (2023 -> 2024)
+dados_variacao <- dados_final %>%
+filter(seguranca_alimentar == "Com insegurança alimentar") %>%
+  select(regioes, ano, porcentagem) %>%
+  pivot_wider(names_from = ano,
+              values_from = porcentagem,
+              names_prefix = "perc_") %>%
+  mutate(variacao_percentual = ((perc_2024 - perc_2023) / perc_2023) * 100) %>%
+
+# Ordem dos selects (perc_2024 antes de perc_2023)
+  select(regioes, perc_2024, perc_2023, variacao_percentual) %>%
+  mutate(regioes = factor(regioes, levels = c("Brasil", "Norte", "Nordeste", "Sudeste", "Sul", "Centro-Oeste"))) %>%
+  arrange(regioes)
+
+# 2. CALCULA O NÚMERO DE LINHAS ANTES DO PIPE
+n_rows_data <- nrow(dados_variacao)
+
+# 3. FORMATAÇÃO CIENTÍFICA (ABNT) E GERAÇÃO DA TABELA
+tabela_abnt_reducao <- dados_variacao %>%
+# Formata os números para a exibição na tabela
+  mutate(
+    `Proporção 2024 (%)` = number(perc_2024, accuracy = 0.1, decimal.mark = ","),
+    `Proporção 2023 (%)` = number(perc_2023, accuracy = 0.1, decimal.mark = ","),
+    `Variação Percentual (%)` = number(variacao_percentual, accuracy = 0.1, decimal.mark = ",")
+    ) %>%
+  
+# Seleciona as colunas a serem exibidas na ordem final
+  select(regioes, `Proporção 2024 (%)`, `Proporção 2023 (%)`, `Variação Percentual (%)`) %>%
+  
+#Renomeia a coluna principal
+  rename("Região" = regioes) %>%
+  
+# Gera a tabela usando kable
+kable(
+  caption = '<span style="color: black;">Tabela 2 – Variação Percentual de Pessoas em Insegurança Alimentar (IA Total) por Região do Brasil (2023–2024)</span>',
+  format = "html",
+  align = "l") %>%
+  kable_styling(
+    bootstrap_options = "striped",full_width = FALSE) %>%
+
+# Adiciona bordas 
+  row_spec(0, extra_css = "border-bottom: 2px solid black;") %>%
+  
+# Usa a variável numérica pré-calculada para o índice da última linha
+  row_spec(n_rows_data, hline_after = TRUE) %>%
+  row_spec(1, bold = TRUE) %>%
+  
+  add_footnote(
+    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    notation = "none" 
+  )
+
+tabela_abnt_reducao
+
+# --------------- Tabela 3 Corrigida
+library(dplyr) 
+library(tidyr)
+library(knitr)
+library(kableExtra)
+library(scales)
+
+# 1. PREPARAÇÃO E CÁLCULO DA VARIAÇÃO PERCENTUAL (2023 -> 2024)
+dados_niveis_variacao <- dados_final %>%
+  # Filtramos apenas para o Brasil
+  filter(regioes == "Brasil") %>%
+  
+  # Filtramos as 4 categorias mutuamente exclusivas
+  filter(seguranca_alimentar %in% c("Com segurança alimentar",
+                                    "Com insegurança alimentar leve",
+                                    "Com insegurança alimentar moderada",
+                                    "Com insegurança alimentar grave")) %>%
+  
+  # Selecionamos as colunas de ano e porcentagem
+  select(seguranca_alimentar, ano, porcentagem) %>%
+  
+  # Pivotamos a tabela
+  pivot_wider(
+    names_from = ano,
+    values_from = porcentagem,
+    names_prefix = "perc_"
+  ) %>%
+  
+  # Calcula a variação percentual
+  mutate(
+    variacao_percentual = ((perc_2024 - perc_2023) / perc_2023) * 100
+  ) %>%
+  
+  # ORDEM DE COLUNAS: 2024 antes de 2023
+  select(seguranca_alimentar, perc_2024, perc_2023, variacao_percentual) %>%
+  
+  # Renomeia as categorias para serem mais claras na tabela
+  mutate(
+    seguranca_alimentar = case_when(
+      seguranca_alimentar == "Com segurança alimentar" ~ "Com Segurança Alimentar",
+      seguranca_alimentar == "Com insegurança alimentar leve" ~ "Insegurança Alimentar Leve",
+      seguranca_alimentar == "Com insegurança alimentar moderada" ~ "Insegurança Alimentar Moderada",
+      seguranca_alimentar == "Com insegurança alimentar grave" ~ "Insegurança Alimentar Grave",
+      TRUE ~ seguranca_alimentar
+    )
+  ) %>%
+  
+  mutate(seguranca_alimentar = factor(seguranca_alimentar,
+                                      levels = c("Com Segurança Alimentar",
+                                                 "Insegurança Alimentar Leve",
+                                                 "Insegurança Alimentar Moderada",
+                                                 "Insegurança Alimentar Grave"))) %>%
+  arrange(seguranca_alimentar)
+
+
+# 2. FORMATAÇÃO CIENTÍFICA (ABNT) E GERAÇÃO DA TABELA
+n_rows_data <- nrow(dados_niveis_variacao)
+
+tabela_abnt_niveis_brasil <- dados_niveis_variacao %>%
+  
+  # Formata os números para a exibição na tabela
+  mutate(
+    `Proporção 2024 (%)` = number(perc_2024, accuracy = 0.1, decimal.mark = ","),
+    `Proporção 2023 (%)` = number(perc_2023, accuracy = 0.1, decimal.mark = ","),
+    `Variação Percentual (%)` = number(variacao_percentual, accuracy = 0.1, decimal.mark = ",")
+  ) %>%
+
+  select(`Nível de Segurança Alimentar` = seguranca_alimentar,
+         `Proporção 2024 (%)`,
+         `Proporção 2023 (%)`,
+         `Variação Percentual (%)`) %>%
+  
+  kable(
+    caption = '<span style="color: black;">Tabela 3 – Variação percentual dos níveis de segurança alimentar do Brasil (2023–2024)</span>',
+    format = "html",
+    align = "l"
+  ) %>%
+  kable_styling(
+    bootstrap_options = "striped",
+    full_width = FALSE
+  ) %>%
+  # Adiciona bordas conforme ABNT
+  row_spec(0, extra_css = "border-bottom: 2px solid black;") %>%
+  row_spec(n_rows_data, hline_after = TRUE) %>%
+  add_footnote(
+    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    notation = "none" 
+  )
+
+tabela_abnt_niveis_brasil
+
+
+# 1. PREPARAÇÃO E CÁLCULO DA VARIAÇÃO
+dados_niveis_variacao_abs <- dados_final %>%
+  filter(regioes == "Brasil") %>%
+  filter(seguranca_alimentar %in% c("Com segurança alimentar",
+                                    "Com insegurança alimentar leve",
+                                    "Com insegurança alimentar moderada",
+                                    "Com insegurança alimentar grave")) %>%
+  select(seguranca_alimentar, ano, total_moradores, porcentagem) %>%
+  pivot_wider(
+    names_from = ano,
+    values_from = c(total_moradores, porcentagem),
+    names_prefix = c("abs_", "perc_")
+  ) %>%
+  mutate(
+    variacao_moradores = abs_2024 - abs_2023,
+    variacao_percentual = ((abs_2024 - abs_2023) / abs_2023) * 100
+  ) %>%
+  select(
+    seguranca_alimentar, 
+    Moradores_2024 = abs_2024, 
+    Moradores_2023 = abs_2023, 
+    Variacao_Absoluta = variacao_moradores, 
+    Variacao_Percentual = variacao_percentual
+  ) %>%
+  mutate(
+    seguranca_alimentar = case_when(
+      seguranca_alimentar == "Com segurança alimentar" ~ "Com Segurança Alimentar",
+      seguranca_alimentar == "Com insegurança alimentar leve" ~ "Insegurança Alimentar Leve",
+      seguranca_alimentar == "Com insegurança alimentar moderada" ~ "Insegurança Alimentar Moderada",
+      seguranca_alimentar == "Com insegurança alimentar grave" ~ "Insegurança Alimentar Grave",
+      TRUE ~ seguranca_alimentar
+    ),
+    seguranca_alimentar = factor(seguranca_alimentar,
+                                 levels = c("Com Segurança Alimentar",
+                                            "Insegurança Alimentar Leve",
+                                            "Insegurança Alimentar Moderada",
+                                            "Insegurança Alimentar Grave"))
+  ) %>%
+  arrange(seguranca_alimentar)
+
+# 2. PRINT DO RESULTADO FINAL
+print(dados_niveis_variacao_abs)
+
+
+# --------------- Tabela 4 (Moradores, Variação Absoluta e Percentual por Nível)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(kableExtra)
+library(scales)
+
+# 1. PREPARAÇÃO E CÁLCULO DA VARIAÇÃO
+dados_filtrados <- dados_final %>%
+  filter(regioes == "Brasil") %>%
+  filter(seguranca_alimentar %in% c("Com segurança alimentar",
+                                    "Com insegurança alimentar leve",
+                                    "Com insegurança alimentar moderada",
+                                    "Com insegurança alimentar grave")) %>%
+  
+  # Aplica a multiplicação por 1000 na coluna total_moradores (agora População)
+  mutate(
+    total_populacao = total_moradores * 1000 
+  ) %>%
+  select(regioes, seguranca_alimentar, ano, total_populacao, porcentagem)
+
+# 1A. PIVOTAGEM 1: População (Valores Absolutos)
+dados_populacao <- dados_filtrados %>%
+  select(-porcentagem) %>%
+  pivot_wider(
+    names_from = ano,
+    values_from = total_populacao,
+    names_prefix = "abs_" 
+  )
+
+# 1B. PIVOTAGEM 2: Proporção (Valores Percentuais)
+dados_proporcao <- dados_filtrados %>%
+  select(-total_populacao) %>%
+  pivot_wider(
+    names_from = ano,
+    values_from = porcentagem,
+    names_prefix = "perc_"
+  )
+
+# JUNÇÃO DOS DADOS E CÁLCULO FINAL
+dados_tabela_6_final <- dados_populacao %>%
+  left_join(dados_proporcao, by = c("regioes", "seguranca_alimentar")) %>%
+  
+  # Calcula as Variações
+  mutate(
+    variacao_populacao = abs_2024 - abs_2023,
+    variacao_percentual = ((abs_2024 - abs_2023) / abs_2023) * 100 
+  ) %>%
+  
+  # Renomeia e ordena as categorias de forma lógica
+  mutate(
+    seguranca_alimentar = case_when(
+      seguranca_alimentar == "Com segurança alimentar" ~ "Com Segurança Alimentar",
+      seguranca_alimentar == "Com insegurança alimentar leve" ~ "Insegurança Alimentar Leve",
+      seguranca_alimentar == "Com insegurança alimentar moderada" ~ "Insegurança Alimentar Moderada",
+      seguranca_alimentar == "Com insegurança alimentar grave" ~ "Insegurança Alimentar Grave",
+      TRUE ~ seguranca_alimentar
+    ),
+    seguranca_alimentar = factor(seguranca_alimentar,
+                                 levels = c("Com Segurança Alimentar",
+                                            "Insegurança Alimentar Leve",
+                                            "Insegurança Alimentar Moderada",
+                                            "Insegurança Alimentar Grave"))
+  ) %>%
+  arrange(seguranca_alimentar)
+
+
+# Tabela 4
+n_rows_data <- nrow(dados_tabela_6_final)
+
+tabela_abnt_tabela_6_completa <- dados_tabela_6_final %>%
+  
+  # Formata os números para exibição
+  mutate(
+    `População 2024` = number(abs_2024, big.mark = ".", decimal.mark = ",", accuracy = 1),
+    `População 2023` = number(abs_2023, big.mark = ".", decimal.mark = ",", accuracy = 1),
+    # Variação Absoluta
+    `Variação Absoluta` = number(variacao_populacao, big.mark = ".", decimal.mark = ",", accuracy = 1, style_positive = "plus"),
+    # Variação Percentual
+    `Variação Percentual (%)` = number(variacao_percentual, accuracy = 0.1, decimal.mark = ",", style_positive = "plus")
+  ) %>%
+  
+  # Seleciona e renomeia as colunas na ordem final
+  select(`Nível de Segurança Alimentar` = seguranca_alimentar,
+         `População 2024`,
+         `População 2023`,
+         `Variação Absoluta`,
+         `Variação Percentual (%)`) %>%
+  
+  kable(
+    caption = '<span style="color: black;">Tabela 4 – População, Variação Absoluta e Percentual por Nível de Segurança Alimentar no Brasil (2023–2024)</span>',
+    format = "html",
+    align = "l"
+  ) %>%
+  kable_styling(
+    bootstrap_options = "striped",
+    full_width = FALSE
+  ) %>%
+  row_spec(0, extra_css = "border-bottom: 2px solid black;") %>% 
+  row_spec(n_rows_data, hline_after = TRUE) %>% 
+
+  add_footnote(
+    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    notation = "none" 
+  )
+
+tabela_abnt_tabela_6_completa
