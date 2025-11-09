@@ -150,7 +150,7 @@ mapa_grave_final <- mapa_2024_grave + mapa_2023_grave +
   plot_annotation(
     title = "Proporção de pessoas em insegurança alimentar grave por Região do Brasil",
     subtitle = "Comparação entre 2023 e 2024",
-    caption = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro",
+    caption = "Fonte: PNAD/SIDRA (Tabela 9552) | Autor: João Pedro",
     theme = theme(
       plot.title = element_text(face = "bold", family = "Ubuntu", 
                                 size = 16, hjust = 0.5),
@@ -256,7 +256,7 @@ mapa_moderada_final <- mapa_2024_moderada + mapa_2023_moderada +
   plot_annotation(
     title = "Proporção de pessoas em insegurança alimentar moderada por Região do Brasil",
     subtitle = "Comparação entre 2023 e 2024",
-    caption = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro",
+    caption = "Fonte: PNAD/SIDRA (Tabela 9552) | Autor: João Pedro",
     theme = theme(
       plot.title = element_text(face = "bold", family = "Ubuntu", 
                                 size = 16, hjust = 0.5),
@@ -363,7 +363,7 @@ mapa_leve_final <- mapa_2024_leve + mapa_2023_leve +
   plot_annotation(
     title = "Proporção de pessoas em insegurança alimentar leve por Região do Brasil",
     subtitle = "Comparação entre 2023 e 2024",
-    caption = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro",
+    caption = "Fonte: PNAD/SIDRA (Tabela 9552) | Autor: João Pedro",
     theme = theme(
       plot.title = element_text(face = "bold", family = "Ubuntu", 
                                 size = 16, hjust = 0.5),
@@ -470,7 +470,7 @@ mapa_seguranca_final <- mapa_2024_seguranca + mapa_2023_seguranca +
   plot_annotation(
     title = "Proporção de pessoas em segurança alimentar por Região do Brasil",
     subtitle = "Comparação entre 2023 e 2024",
-    caption = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro",
+    caption = "Fonte: PNAD/SIDRA (Tabela 9552) | Autor: João Pedro",
     theme = theme(
       plot.title = element_text(face = "bold", family = "Ubuntu", 
                                 size = 16, hjust = 0.5),
@@ -575,14 +575,13 @@ tabela_final_abnt <- tabela_abnt_final_dados %>%
   row_spec(n_rows_tabela_1, bold = TRUE, hline_after = TRUE) %>%
   # ADICIONA A FONTE/NOTA (placement removido)
   add_footnote(
-    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    label = "Fonte: PNAD/SIDRA (Tabela 9552) | Autor: João Pedro", 
     notation = "none", # Remove a marcação (a, b, c...)
     escape = FALSE # Permite o uso de caracteres especiais ou HTML (se necessário)
   )
 
 tabela_final_abnt
 
-# --------- Tabela 2 Corrigida (Variação de Insegurança Alimentar por Região)
 # --------- Tabela 2 Corrigida (Variação de Insegurança Alimentar por Região)
 library(dplyr)
 library(tidyr)
@@ -649,7 +648,7 @@ tabela_abnt_reducao <- dados_variacao %>%
   row_spec(1, bold = TRUE) %>%
   # ADICIONA A FONTE/NOTA
   add_footnote(
-    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    label = "Fonte: PNAD/SIDRA (Tabela 9552) | Autor: João Pedro", 
     notation = "none" 
   )
 
@@ -710,7 +709,7 @@ kable(
   row_spec(1, bold = TRUE) %>%
   
   add_footnote(
-    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    label = "Fonte: PNAD/SIDRA (Tabela 9552) | Autor: João Pedro", 
     notation = "none" 
   )
 
@@ -801,7 +800,7 @@ tabela_abnt_niveis_brasil <- dados_niveis_variacao %>%
   row_spec(0, extra_css = "border-bottom: 2px solid black;") %>%
   row_spec(n_rows_data, hline_after = TRUE) %>%
   add_footnote(
-    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    label = "Fonte: PNAD/SIDRA (Tabela 9552) | Autor: João Pedro", 
     notation = "none" 
   )
 
@@ -954,7 +953,7 @@ tabela_abnt_tabela_6_completa <- dados_tabela_6_final %>%
   row_spec(n_rows_data, hline_after = TRUE) %>% 
 
   add_footnote(
-    label = "Fonte: PNAD/SIDRA (Tabela 9751) | Autor: João Pedro", 
+    label = "Fonte: PNAD/SIDRA (Tabela 9552) | Autor: João Pedro", 
     notation = "none" 
   )
 
